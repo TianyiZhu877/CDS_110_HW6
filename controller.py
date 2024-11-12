@@ -67,8 +67,10 @@ def ctrl_linear(state:np.ndarray,
     # Do not forget to clamp the integral gain for adaptation.
     # u_steering = ...
 # b)
-    K = [-1, -0.5, -1.5, -1]
-    Kr = 0
+    K = [-1, -4, -4, -1]
+    Kr = 1
+    # K = np.zeros(4)
+    # Kr = 0
 
 # c)
     # K = lqr_controller(params, v_B_x)
