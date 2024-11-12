@@ -4,6 +4,20 @@ from trajectory import compute_circle_start_on_circle, wrap_circular_value
 import matplotlib.pyplot as plt
 from scipy.linalg import solve_continuous_are
 
+class Intergral:
+    def __init__(self, dt, dims=4, clip = 10):
+        self.dt = dt
+        self.e_i = np.zeros(dims)
+        self.clip = clip
+    
+    def update(self, e):
+        self.e_i = self.e_i + e*self.dt
+        np.clip(self.e_i, -self.clip, self.clip)
+        # print(self.e_i)
+    
+    def __call__(self):
+        return self.e_i
+
 def lqr_controller(params, v_B_x):
     dt = params['dt']
     tau = params['tau']
@@ -34,7 +48,7 @@ def lqr_controller(params, v_B_x):
     return K[0]
 
 def ctrl_linear(state:np.ndarray,
-                state_d:np.ndarray) -> np.ndarray:
+                state_d:np.ndarray, e_intergral) -> np.ndarray:
 
     p_I_x, p_I_y, theta, v_B_x, v_B_y, omega = state
     p_d_I_x, p_d_I_y, theta_d, v_d_I_x, v_d_I_y, omega_d = state_d
@@ -61,23 +75,32 @@ def ctrl_linear(state:np.ndarray,
     # e2_dot.
     omega_err = omega - omega_d
 
+    e = np.array([e_perp, e_perp_dot, theta_err, omega_err])
     ###
     # Add the u_steering calculation here as a feedback on e_perp, e_perp_dot, theta_err, omega_err.
     # Do not forget to clip the steering angle between u_steering_min and u_steering_max.
     # Do not forget to clamp the integral gain for adaptation.
     # u_steering = ...
-# b)
-    K = [-1, -4, -4, -1]
-    Kr = 1
-    # K = np.zeros(4)
-    # Kr = 0
-
 # c)
+    # K = [-1, -4, -5, -1]
+    K = [-1, -0.5, -1.5, -0.5]
+    # K = np.zeros(4)
+
+# d)
     # K = lqr_controller(params, v_B_x)
     # Kr = 0
 
-    u_steering = np.dot(K,np.array([e_perp, e_perp_dot, theta_err, omega_err])) + Kr*omega_d
-    
+    u_steering = np.dot(K,e)
+
+# e)
+    # Kz = np.array([-10, -10, -10, -1])
+    # e_intergral.update(e)
+    # u_steering = u_steering + np.dot(Kz,e_intergral()) 
+
+# f)
+    Kr = 0.2
+    u_steering = u_steering + Kr*omega_d
+
     ###
     # Add the u_v calculation here from Problem Set 5
     # Do not forget to clip u_v.
@@ -132,6 +155,7 @@ angle = 0.0
 state = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0])
 state0 = state.copy()
 state_array = np.empty((N, 6))
+e_intergral = Intergral(DT)
 
 for i in range(N):
     # Compute desired trajectory.
@@ -145,7 +169,7 @@ for i in range(N):
     state_d = np.array([x_d_I, y_d_I, theta_d, vx_d_I, vy_d_I, omega_d])
 
     action, outputs = ctrl_linear(state=state,
-                                  state_d=state_d)
+                                  state_d=state_d, e_intergral=e_intergral)
 
     # Propagate.
     next_state = car.dynamics(state, action)
