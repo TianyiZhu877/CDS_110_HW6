@@ -2,7 +2,36 @@ import numpy as np
 from systems import BicycleModel
 from trajectory import compute_circle_start_on_circle, wrap_circular_value
 import matplotlib.pyplot as plt
+from scipy.linalg import solve_continuous_are
 
+def lqr_controller(params, v_B_x):
+    dt = params['dt']
+    tau = params['tau']
+    L = params['L']
+    Cy = params['Cy']
+    mass = params['mass']
+    Iz = params['Iz']
+    A = np.array([[0,1,1,1],
+                  [0, -Cy/(mass*v_B_x), Cy/mass, 0],
+                  [0,0,0,1],
+                  [0,0,0, -L*L*Cy/(2*Iz*v_B_x)]])
+    
+    B = np.array([[0],
+                  [Cy/mass],
+                  [0],
+                  [Cy*L/2/Iz]])
+    
+    Q = np.eye(4)
+    # np.array([[1, 0, 0, 0],
+    #               [0, 2, 0, 0],
+    #               [0, 0, 3, 0],
+    #               [0, 0, 0, 4]])
+    R = np.array([[1]])
+
+    P = solve_continuous_are(A, B, Q, R)
+    K = -np.linalg.inv(R) @ B.T @ P
+    # print(K)
+    return K[0]
 
 def ctrl_linear(state:np.ndarray,
                 state_d:np.ndarray) -> np.ndarray:
@@ -37,12 +66,23 @@ def ctrl_linear(state:np.ndarray,
     # Do not forget to clip the steering angle between u_steering_min and u_steering_max.
     # Do not forget to clamp the integral gain for adaptation.
     # u_steering = ...
-    u_steering = 0.0
+# b)
+    K = [-1, -0.5, -1.5, -1]
+    Kr = 0
 
+# c)
+    # K = lqr_controller(params, v_B_x)
+    # Kr = 0
+
+    u_steering = np.dot(K,np.array([e_perp, e_perp_dot, theta_err, omega_err])) + Kr*omega_d
+    
     ###
     # Add the u_v calculation here from Problem Set 5
     # Do not forget to clip u_v.
-    u_v = 0.0
+    v_d = np.linalg.norm(v_d_B)
+    v = np.linalg.norm(np.array([v_B_x, v_B_y]))
+    u_v = (-0.5*(v-v_d) + v_d)
+    u_v = np.clip(u_v, -MAX_VEL, MAX_VEL)
     ###
     
     # Debug params.
